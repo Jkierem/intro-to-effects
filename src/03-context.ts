@@ -2,6 +2,15 @@ import * as T from "@effect/io/Effect"
 import * as Context from "@effect/data/Context"
 import { pipe } from "@effect/data/Function";
 
+/**
+ * Previous effects didn't have a context (they all had never in the R type).
+ * So in this section we are going to start using the R parameter to supply
+ * a context
+ * 
+ * All we need is an interface that defines the service and a Tag that identifies
+ * the service. Think of the Context as a Map<Tag, Service>.
+ */
+
 interface Random {
     next: () => T.Effect<never, never, number>
 }
@@ -14,11 +23,15 @@ const program1 = pipe(
     T.map(x => x + 1)
 )
 
-// 1. Provide an implementation of the environment to run program1
-//
-// Tip: use a combination of provideService, Random and Random.of
-//
-// T.runPromise(program1);
+/**
+ * To build implementations of services, tags have an "of" method available
+ * i.e.:
+ *      Random.of({ next: () => 42 })
+ * 
+ * 1. Provide an implementation of the environment and run program1
+ *
+ * Tip: use a combination of T.provideService, Random and Random.of
+ */
 
 const printLn = (msg: string) => T.sync(() => console.log(msg))
 
@@ -68,7 +81,7 @@ const program3 = program2 as unknown as T.Effect<never, never, never>;
 T.runPromise(program3)
 
 // 3. Compose both services in a single context
-// Tip. Use Context.empty and Context.add
+// Tip. Use Context.empty and Context.add.
 
 interface IOService {
     print: (msg: string) => T.Effect<never, never, void>,
@@ -80,7 +93,7 @@ interface GameService {
 }
 
 const services = pipe(
-    undefined
+    undefined // -- Add code here --
 )
 
 // 4. Construct an program that uses the context to play rps receiving the 
