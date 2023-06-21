@@ -1,6 +1,7 @@
 import * as T from "@effect/io/Effect"
 import * as Context from "@effect/data/Context"
 import { pipe } from "@effect/data/Function";
+import { prompt } from "./_utils";
 
 /**
  * Previous effects didn't have a context (they all had never in the R type).
@@ -36,14 +37,14 @@ const program1 = pipe(
 const printLn = (msg: string) => T.sync(() => console.log(msg))
 
 class NotInteractive { readonly _tag = "NotInteractive" };
-const ask = (msg: string) => T.async<never, NotInteractive, string>((resume) => {
-    const ans = prompt(msg, "")
+const ask = (msg: string) => T.tryCatchPromise(async () => {
+    const ans = await prompt(msg)
     if( ans === null ){
-        resume(T.fail(new NotInteractive()))
+        throw undefined
     } else {
-        resume(T.succeed(ans))
+        return ans
     }
-})
+}, () => new NotInteractive())
 
 class AuthError { readonly _tag = "AuthError" }
 
@@ -76,9 +77,9 @@ const program2 = pipe(
 
 // 2. Using program2, create a new program that can run and handles the errors.
 
-const program3 = program2 as unknown as T.Effect<never, never, never>;
+const program3 = program2
 
-T.runPromise(program3)
+// T.runPromise(program3)
 
 // 3. Compose both services in a single context
 // Tip. Use Context.empty and Context.add.
@@ -93,7 +94,7 @@ interface GameService {
 }
 
 const services = pipe(
-    undefined // -- Add code here --
+    undefined
 )
 
 // 4. Construct an program that uses the context to play rps receiving the 
@@ -101,5 +102,5 @@ const services = pipe(
 //    the game
 
 const RPS = pipe(
-    services,
+    undefined
 )
