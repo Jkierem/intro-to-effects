@@ -1,0 +1,26 @@
+{
+  "name": "effect-sandbox",
+  "version": "0.0.1",
+  "description": "snadbox to try out effects",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start:hello": "npx nodemon ./src/00-hello.ts",
+    "start:operators": "npx nodemon ./src/01-operators.ts",
+    "start:errors": "npx nodemon ./src/02-errors.ts",
+    "start:context": "npx nodemon ./src/03-context.ts",
+    "once:hello": "ts-node ./src/00-hello.ts",
+    "once:operators": "ts-node ./src/01-operators.ts",
+    "once:errors": "ts-node ./src/02-errors.ts",
+    "once:context": "ts-node ./src/03-context.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.3.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.3"
+  },
+  "dependencies": {
+    "@effect/data": "^0.12.9",
+    "@effect/io": "^0.26.1"
+  }
+}
