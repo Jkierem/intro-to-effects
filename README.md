@@ -7,7 +7,8 @@ Here you will find basic excercises to get started using effects. You'll learn:
 3. Basic handling of errors
 4. Basic use of contexts
 
-To start things off, run `yarn install`
+This uses nvm to handle the node version and requires node version 18.0.0
+To start things off, run `nvm use` followed by `yarn install`
 
 You can run any of the scripts by using package scripts.
 The following scripts are available:
