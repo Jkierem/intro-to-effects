@@ -89,8 +89,10 @@ interface IOService {
     ask: (msg: string) => T.Effect<never, NotInteractive, string>
 }
 
+type RPSOption = "rock" | "paper" | "scissors"
+
 interface GameService {
-    next: () => T.Effect<never, never, "rock" | "paper" | "scissors">
+    next: () => T.Effect<never, never, RPSOption>
 }
 
 const services = pipe(
@@ -98,9 +100,18 @@ const services = pipe(
 )
 
 // 4. Construct an program that uses the context to play rps receiving the 
-//    users input, and randomly choosing an option and showing the result of 
-//    the game
+//    users' input, validating that the input is "rock", "paper", or "scissors, 
+//    and randomly choosing an option and showing the result of the game
+//
+//    Tip: Divide it in three effects: 
+//        - one that gets the user input and fails on invalid input
+//        - one that generates the random cpu pick
+//        - one that calculates the result
 
 const RPS = pipe(
     undefined
 )
+
+// (Bonus) 5. Make it so it asks the user again if the input is invalid, using T.retryWhile.
+
+// (Bonus) 6. Make it so it restarts if it's a tie, using T.repeatWhile.
