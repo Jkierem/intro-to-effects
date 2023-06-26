@@ -9,10 +9,12 @@
     "start:operators": "npx nodemon ./src/01-operators.ts",
     "start:errors": "npx nodemon ./src/02-errors.ts",
     "start:context": "npx nodemon ./src/03-context.ts",
+    "start:layers": "npx nodemon ./src/04-layers.ts",
     "once:hello": "ts-node ./src/00-hello.ts",
     "once:operators": "ts-node ./src/01-operators.ts",
     "once:errors": "ts-node ./src/02-errors.ts",
-    "once:context": "ts-node ./src/03-context.ts"
+    "once:context": "ts-node ./src/03-context.ts",
+    "once:layers": "ts-node ./src/04-layers.ts"
   },
   "devDependencies": {
     "@types/node": "^20.3.1",

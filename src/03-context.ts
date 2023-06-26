@@ -61,16 +61,11 @@ interface UserService {
 
 const UserService = Context.Tag<UserService>();
 
-const AccessUserService = pipe(
-    UserService,
-    T.map(a => a)
-)
-
 const program2 = pipe(
     T.Do(),
     T.bind("username", () => ask("username: ")),
     T.bind("password", () => ask("password: ")),
-    T.bind("service", () => AccessUserService),
+    T.bind("service", () => UserService),
     T.flatMap(({ username, password, service }) =>  service.login(username, password)),
     T.tap((user) => printLn(`Hello ${user.firstName}!`))
 )
