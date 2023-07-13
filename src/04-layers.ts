@@ -83,7 +83,7 @@ const GameServiceLive = L.succeed(
 class InvalidOption { readonly _tag = "InvalidOption" }
 type Winner = "player" | "cpu"
 interface RPS {
-    game: T.Effect<GameService | IOService, InvalidOption, Winner>
+    game: T.Effect<never, InvalidOption, Winner>
 }
 
 const RPS = Context.Tag<RPS>();
@@ -106,7 +106,7 @@ const program = pipe(
     T.flatMap(game => T.sync(() => console.log(`${game} won!`)))
 )
 
-const MainLayer = undefined as unknown as L.Layer<never, never, GameService | IOService | RPS>
+const MainLayer = undefined as unknown as L.Layer<never, never, RPS>
 
 pipe(
     program,
