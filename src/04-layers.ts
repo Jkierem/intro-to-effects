@@ -1,7 +1,5 @@
-import * as Context from "@effect/data/Context"
-import { pipe } from "@effect/data/Function";
-import * as T from "@effect/io/Effect"
-import * as L from "@effect/io/Layer"
+import { Effect, Context, Layer, pipe} from "effect"
+import { prompt } from "./_utils"
 
 /**
  * Think of Layers as a more structured way of building contexts.
@@ -15,45 +13,50 @@ import * as L from "@effect/io/Layer"
  * Let's build the rock-paper-scissors game with layers
  */
 
-interface ConsoleService {
-    log: (msg: string) => T.Effect<never, never, void>
-}
+class ConsoleService extends Context.Tag("ConsoleService")<
+    ConsoleService,
+    {
+        log: (msg: string) => Effect.Effect<void>
+    }
+>(){}
 
-const ConsoleService = Context.Tag<ConsoleService>();
-
-const ConsoleServiceLive = L.succeed(
+const ConsoleServiceLive = Layer.succeed(
     ConsoleService,
     ConsoleService.of({
         log(msg) {
-            return T.sync(() => console.log(msg))
+            return Effect.sync(() => console.log(msg))
         },
     })
 )
 
 class NotInteractive { readonly _tag = "NotInteractive" };
 
-interface IOService {
-    print: (msg: string) => T.Effect<never, never, void>,
-    ask: (msg: string) => T.Effect<never, NotInteractive, string>
-}
+class IOService extends Context.Tag("IOService")<
+    IOService,
+    {
+        print: (msg: string) => Effect.Effect<void>,
+        ask: (msg: string) => Effect.Effect<string, NotInteractive>
+    }
+>(){}
 
-const IOService = Context.Tag<IOService>();
-
-const IOServiceLive = L.effect(
+const IOServiceLive = Layer.effect(
     IOService,
     pipe(
         ConsoleService,
-        T.map((consoleService) => {
+        Effect.map((consoleService) => {
             return IOService.of({
                 ask(msg){
-                    return T.tryCatchPromise(async () => {
-                        const ans = await prompt(msg)
-                        if( ans === null ){
-                            throw undefined
-                        } else {
-                            return ans
-                        }
-                    }, () => new NotInteractive())
+                    return Effect.tryPromise({
+                        try: async () => {
+                            const ans = await prompt(msg)
+                            if( ans === null ){
+                                throw undefined
+                            } else {
+                                return ans
+                            }
+                        }, 
+                        catch: () => new NotInteractive()
+                    })
                 },
                 print(msg) {
                     return consoleService.log(msg)
@@ -65,36 +68,38 @@ const IOServiceLive = L.effect(
 
 type RPSOption = "rock" | "paper" | "scissors"
 
-interface GameService {
-    next: () => T.Effect<never, never, RPSOption>
-}
+class GameService extends Context.Tag("GameService")<
+    GameService,
+    {
+        next: () => Effect.Effect<RPSOption>
+    }
+>(){}
 
-const GameService = Context.Tag<GameService>();
-
-const GameServiceLive = L.succeed(
+const GameServiceLive = Layer.succeed(
     GameService,
     GameService.of({
         next() {
-            return T.succeed("rock");
+            return Effect.succeed("rock");
         },
     })
 )
 
 class InvalidOption { readonly _tag = "InvalidOption" }
 type Winner = "player" | "cpu"
-interface RPS {
-    game: T.Effect<never, InvalidOption, Winner>
-}
+class RPS extends Context.Tag("RPS")<
+    RPS,
+    {
+        game: Effect.Effect<Winner, InvalidOption>
+    }
+>(){}
 
-const RPS = Context.Tag<RPS>();
-
-const RPSLive = L.effect(
+const RPSLive = Layer.effect(
     RPS,
     pipe(
-        T.all(GameService, IOService),
-        T.map(([ GameService, IOService ]) => {
+        Effect.all([ GameService, IOService ]),
+        Effect.map(([ GameService, IOService ]) => {
             return RPS.of({
-                game: T.succeed("cpu")
+                game: Effect.succeed("cpu")
             })
         })
     )
@@ -102,14 +107,14 @@ const RPSLive = L.effect(
 
 const program = pipe(
     RPS,
-    T.flatMap(rps => rps.game),
-    T.flatMap(game => T.sync(() => console.log(`${game} won!`)))
+    Effect.flatMap(rps => rps.game),
+    Effect.flatMap(game => Effect.sync(() => console.log(`${game} won!`)))
 )
 
-const MainLayer = undefined as unknown as L.Layer<never, never, RPS>
+const MainLayer = undefined as unknown as Layer.Layer<RPS>
 
 pipe(
     program,
-    T.provideLayer(MainLayer),
-    T.runPromise
+    Effect.provide(MainLayer),
+    Effect.runPromise
 )

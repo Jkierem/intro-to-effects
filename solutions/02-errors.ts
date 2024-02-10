@@ -1,5 +1,4 @@
-import { pipe } from "@effect/data/Function"
-import * as T from "@effect/io/Effect"
+import { Effect, pipe } from "effect"
 /**
  * Effects have three operators for handling expected errors:
  * 1. catchAll: traps all errors thrown
@@ -13,31 +12,32 @@ class OddError { readonly _tag = "OddError" }
 class EvenError { readonly _tag = "EvenError"}
 
 const program = pipe(
-    T.fail(new ConnectionError()),
-    T.zipRight(T.fail(new InvariantError())),
-    T.zipRight(T.fail(new OddError())),
-    T.zipRight(T.fail(new EvenError()))
+    Effect.fail(new ConnectionError()),
+    Effect.zipRight(Effect.fail(new InvariantError())),
+    Effect.zipRight(Effect.fail(new OddError())),
+    Effect.zipRight(Effect.fail(new EvenError()))
 )
 
 // 1. Use catchTag to handle ConnectionErrors
 
-const net = pipe(
+const withoutConnectionErros = pipe(
     program,
-    T.catchTag("ConnectionError", (e) => T.succeed(42 as const)),
+    Effect.catchTag("ConnectionError", () => Effect.succeed(1))
 )
 
 // 2. Use catchTags to handle OddError and EvenError
 
-const num = pipe(
-    net,
-    T.catchTags({
-        OddError: (e) => T.succeed(43 as const),
-        EvenError: (e) => T.succeed(44 as const),
-    })
+const withoutParityErrors = pipe(
+    withoutConnectionErros,
+    Effect.catchTags({
+        EvenError: () => Effect.succeed(2),
+        OddError: () => Effect.succeed(3),
+    }),
 )
 
 // 3. Use catchAll to handle remaining errors
-const remain = pipe(
-    num,
-    T.catchAll((e) => T.succeed(55 as const))
+
+const withoutErrors = pipe(
+    withoutParityErrors,
+    Effect.catchAll(() => Effect.succeed(4))
 )

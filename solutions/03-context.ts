@@ -1,7 +1,4 @@
-import * as T from "@effect/io/Effect"
-import * as E from "@effect/data/Either"
-import * as Context from "@effect/data/Context"
-import { pipe } from "@effect/data/Function";
+import { Effect, Context, pipe, Schedule } from "effect";
 import { prompt } from "./_utils";
 
 /**
@@ -13,23 +10,15 @@ import { prompt } from "./_utils";
  * the service. Think of the Context as a Map<Tag, Service>.
  */
 
-interface Random {
-    next: () => T.Effect<never, never, number>
-}
-
-const Random = Context.Tag<Random>()
-
-const RandomLive = Random.of({
-    next() {
-        return T.sync(() => Math.random())  
-    }
-})
+class Random extends Context.Tag("Random")<
+    Random,
+    { next: () => Effect.Effect<number> }
+>(){}
 
 const program1 = pipe(
     Random,
-    T.flatMap(random => random.next()),
-    T.map(x => x + 1),
-    T.provideService(Random, RandomLive),
+    Effect.flatMap(random => random.next()),
+    Effect.map(x => x + 1)
 )
 
 /**
@@ -39,20 +28,35 @@ const program1 = pipe(
  * 
  * 1. Provide an implementation of the environment and run program1
  *
- * Tip: use a combination of T.provideService, Random and Random.of
+ * Tip: use a combination of Effect.provideService, Random and Random.of
  */
 
-const printLn = (msg: string) => T.sync(() => console.log(msg))
+pipe(
+    program1,
+    Effect.provideService(
+        Random, 
+        Random.of({
+            next() {
+                return Effect.succeed(Math.random())
+            },
+        })),
+    Effect.runPromise
+)
+
+const printLn = (msg: string) => Effect.sync(() => console.log(msg))
 
 class NotInteractive { readonly _tag = "NotInteractive" };
-const ask = (msg: string) => T.tryCatchPromise(async () => {
-    const ans = await prompt(msg)
-    if( ans === null ){
-        throw undefined
-    } else {
-        return ans
-    }
-}, () => new NotInteractive())
+const ask = (msg: string) => Effect.tryPromise({
+    try: async () => {
+        const ans = await prompt(msg)
+        if( ans === null ){
+            throw undefined
+        } else {
+            return ans
+        }
+    },
+    catch: () => new NotInteractive()
+})
 
 class AuthError { readonly _tag = "AuthError" }
 
@@ -63,74 +67,79 @@ type User = {
     lastName: string
 }
 
-interface UserService {
-    login: (username: string, password: string) => T.Effect<never, AuthError, User>
-}
-
-const UserService = Context.Tag<UserService>();
+class UserService extends Context.Tag("UserService")<
+    UserService,
+    {
+        login: (username: string, password: string) => Effect.Effect<User, AuthError>
+    }
+>(){}
 
 const program2 = pipe(
-    T.Do(),
-    T.bind("username", () => ask("username: ")),
-    T.bind("password", () => ask("password: ")),
-    T.bind("service", () => UserService),
-    T.flatMap(({ username, password, service }) =>  service.login(username, password)),
-    T.tap((user) => printLn(`Hello ${user.firstName}!`))
+    Effect.Do,
+    Effect.bind("username", () => ask("username: ")),
+    Effect.bind("password", () => ask("password: ")),
+    Effect.bind("service", () => UserService),
+    Effect.flatMap(({ username, password, service }) =>  service.login(username, password)),
+    Effect.tap((user) => printLn(`Hello ${user.firstName}!`))
 )
 
 // 2. Using program2, create a new program that can run and handles the errors.
 
-const wait = (millis: number): T.Effect<never, never, void> => T.async((resume) => {
-    setTimeout(() => resume(T.unit()), millis);
-})
-
-const equals = (a: string) => (b: string): T.Effect<never, AuthError, string> => {
-    if(a === b){
-        return T.succeed(a);
-    } else {
-        return T.fail(new AuthError());
-    }
-}
-
-const UserServiceLive = UserService.of({
-    login(username, password){
-        return pipe(
-            T.Do(),
-            T.zipLeft(wait(1000)),
-            T.bindDiscard("username", equals("juan")(username)),
-            T.bindDiscard("password", equals("123")(password)),
-            T.map(() => ({
-                id: "idk",
-                username,
-                firstName: "juan",
-                lastName: "gomez"
-            } as User)),
-        )
-    }
-})
-
 const program3 = pipe(
     program2,
-    T.provideService(UserService, UserServiceLive),
-    T.catchAll(e => printLn(e._tag)),
+    Effect.flatMap(({ firstName }) => printLn(`Hello ${firstName}!`)),
+    Effect.catchAll(e => printLn(`Something went wrong: ${e._tag}`)),
+    Effect.provideService(UserService, UserService.of({
+        login(username, password) {
+            if( username !== "jgomez" || password !== "1234" ){
+                return Effect.fail(new AuthError());
+            }
+            return Effect.succeed({
+                id: "juan",
+                firstName: "Juan",
+                lastName: "Gomez",
+                username: "jgomez"
+            })
+        },
+    })),
 )
 
-// T.runPromise(program3)
+Effect.runPromise(program3)
 
 // 3. Compose both services in a single context
-// Tip. Use Context.empty and Context.add
+// Tip. Use Context.empty and Context.add.
 
-interface IOService {
-    print: (msg: string) => T.Effect<never, never, void>,
-    ask: (msg: string) => T.Effect<never, NotInteractive, string>
-}
+class IOService extends Context.Tag("IOService")<
+    IOService,
+    {
+        print: (msg: string) => Effect.Effect<void>,
+        ask: (msg: string) => Effect.Effect<string, NotInteractive>
+    }
+>(){}
 
 type RPSOption = "rock" | "paper" | "scissors"
 
-interface GameService {
-    next: () => T.Effect<never, never, RPSOption>
-}
+class GameService extends Context.Tag("GameService")<
+    GameService, 
+    {
+        next: () => Effect.Effect<RPSOption>
+    }
+>(){}
 
+const services = pipe(
+    Context.empty(),
+    Context.add(GameService, {
+        next() {
+            const n = Math.floor(Math.random() * 3);
+            const pick = ["rock", "paper", "scissors"][n] as RPSOption;
+            return Effect.succeed(pick);
+        },
+    }),
+    Context.add(IOService, {
+        print: printLn,
+        ask,
+    })
+)
 
 // 4. Construct an program that uses the context to play rps receiving the 
 //    users' input, validating that the input is "rock", "paper", or "scissors, 
@@ -141,75 +150,85 @@ interface GameService {
 //        - one that generates the random cpu pick
 //        - one that calculates the result
 
-const IOService = Context.Tag<IOService>();
-const GameService = Context.Tag<GameService>();
-
-const GameServiceTest = GameService.of({
-    next(){
-        return T.succeed("rock");
-    }
-})
-
-const GameServiceLive = GameService.of({
-    next() {
-        const a = Math.floor(Math.random() * 3) as 0 | 1 | 2;
-        return T.succeed((["rock", "paper", "scissors"] as const)[a]);
-    },
-})
-
-const _services = pipe(
-    Context.empty(),
-    Context.add(GameService, GameServiceLive),
-    Context.add(IOService, IOService.of({
-        ask,
-        print: printLn
-    }))
-)
-class InvalidOption { readonly _tag = "InvalidOption" }
-const RPS = pipe(
-    T.Do(),
-    T.bind("io", () => IOService),
-    T.bind("raw", ({ io }) => io.ask("Jan ken pon!: ")),
-    T.bind("player", ({ raw, io }) => ["rock", "paper", "scissors"].includes(raw as any) 
-        ? T.succeed(raw as RPSOption) 
-        : pipe(
-            io.print("Invalid option"), 
-            T.zipRight(T.fail(new InvalidOption))
-        )
+class WrongAnswer {
+    readonly _tag = "WrongAnswer"
+    constructor(public which: string){};
+}
+const AskUser = pipe(
+    IOService,
+    Effect.flatMap((io) => io.ask("Rock, paper or scissors? ")),
+    Effect.flatMap(ans => ["rock", "paper", "scissors"].includes(ans) 
+        ? Effect.succeed(ans as RPSOption)
+        : Effect.fail(new WrongAnswer(ans))
     ),
-    T.retryWhile((e) => e._tag === "InvalidOption"),
-    T.bind("game", () => GameService),
-    T.bind("ai", ({ game }) => game.next()),
-    T.tap(({ io, ai }) => io.print(`CPU picked ${ai}`)),
-    T.map(({ player, ai }) => {
-        const p = player 
-        const result = {
-            rock: {
-                rock: "tie",
-                paper: "CPU Wins!",
-                scissors: "Player Wins!"
-            },
-            paper: {
-                rock: "Player Wins!",
-                paper: "tie",
-                scissors: "CPU Wins!"
-            },
-            scissors: {
-                rock: "CPU Wins!",
-                paper: "Player Wins!",
-                scissors: "tie"
-            }
-        } as const
-        return result[p][ai] 
-    }),
-    T.tap(printLn),
-    T.repeatWhile(x => x === "tie"),
-    T.provideContext(_services)
 )
 
-T.runPromise(RPS)
+const CpuService = pipe(
+    Random,
+    Effect.map((random) => {
+        return GameService.of({
+            next: () => {
+                return pipe(
+                    random.next(),
+                    Effect.map(x => Math.floor(x * 3)),
+                    Effect.map(x => ["rock", "paper", "scissors"][x] as RPSOption)
+                )
+            }
+        })
+    })
+)
+const CpuPick = pipe(
+    Effect.all([CpuService]),
+    Effect.flatMap(([cpu]) => cpu.next())
+)
 
+type Result = "tie" | "cpu" | "player";
+const compare = ({ cpu, user }: { cpu: RPSOption, user: RPSOption }) => {
+    const ans = {
+        rock: {
+            rock: "tie",
+            paper: "cpu",
+            scissors: "player"
+        },
+        paper: {
+            rock: "player",
+            paper: "tie",
+            scissors: "cpu"
+        },
+        scissors: {
+            rock: "cpu",
+            paper: "player",
+            scissors: "tie"
+        }
+    }[user][cpu] as Result
+    return ans
+}
 
-// (Bonus) 5. Make it so it asks the user again if the input is invalid, using T.retryWhile.
+const RPS = pipe(
+    Effect.Do,
+    Effect.bind("user", () => AskUser),
+    Effect.bind("cpu", () => CpuPick),
+    Effect.bind("io", () => IOService),
+    Effect.let("result", a => compare(a)),
+    Effect.tap(({ result, io }) => io.print(result !== "tie" ? `${result} wins`: "It's a tie")),
+    Effect.map(({ result }) => result)
+)
 
-// (Bonus) 6. Make it so it restarts if it's a tie, using T.repeatWhile.
+// (Bonus) 5. Make it so it asks the user again if the input is invalid, using Effect.retry and Effect.catchTag.
+
+const WithRetry = pipe(
+    RPS,
+    Effect.retry({
+        while: e => e._tag === "WrongAnswer"
+    }),
+    Effect.catchTag("WrongAnswer", () => Effect.never)
+)
+
+// (Bonus) 6. Make it so it restarts if it's a tie, using Effect.repeatWhile.
+
+const WithRepeatOnTie = pipe(
+    WithRetry,
+    Effect.repeat({
+        while: result => result === "tie"
+    })
+)

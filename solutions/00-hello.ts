@@ -1,6 +1,4 @@
-import { pipe } from "@effect/data/Function";
-import * as T from "@effect/io/Effect";
-import * as O from "@effect/data/Option";
+import { Effect, Option, pipe } from "effect";
 
 /**
  * An Effect represents a computation.
@@ -27,38 +25,35 @@ import * as O from "@effect/data/Option";
  * There are variants of these operators for returning Either and Cause instead of raw values
  */
 
-const succeedWith42 = T.succeed(42)
+const succeedWith42 = Effect.succeed(42)
 
-const failWith42 = T.fail(42)
+const failWith42 = Effect.fail(42)
 
-const fromMaybe42 = T.getOrFail(O.fromNullable(42))
+const fromMaybe42 = Option.getOrThrow(Option.fromNullable(42))
 
-const fromSyncFunction = T.sync(() => 42)
+const fromSyncFunction = Effect.sync(() => 42)
 
-const fromCallback = T.async<never,never,number>((resume) => resume(T.succeed(42)))
+const fromCallback = Effect.async((resume) => resume(Effect.succeed(42)))
 
-const fromComputationThatMayFail = T.tryCatch(
-    () => 42,
-    e => e as never
-)
+const fromComputationThatMayFail = Effect.try({
+    try: () => 42,
+    catch: e => e as never
+})
 
-const fromPromise = T.tryCatchPromise(
-    () => Promise.resolve(42),
-    e => e as never
-)
+const fromPromise = Effect.tryPromise({
+    try: () => Promise.resolve(42),
+    catch: e => e as never
+})
 
 // 1. Create a program that prints "hello world" using console.log
 //
 // Tip: use a constructor from the top
 
-const program = T.sync(() => console.log("hello world"))
+const program = Effect.sync(() => console.log("Hello world!"));
 
 // 2. Run the program
 
-// pipe(
-//     program,
-//     T.runPromise
-// )
+Effect.runSync(program)
 
 // 3. Create a new program that prints it three times and run it
 
@@ -66,6 +61,15 @@ const program = T.sync(() => console.log("hello world"))
 
 pipe(
     program,
-    T.repeatN(2),
-    T.runPromise
+    Effect.repeatN(2),
+    Effect.runPromise
+)
+
+// or
+
+pipe(
+    program,
+    Effect.zip(program),
+    Effect.zip(program),
+    Effect.runPromise
 )

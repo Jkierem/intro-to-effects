@@ -1,5 +1,4 @@
-import { pipe } from "@effect/data/Function"
-import * as T from "@effect/io/Effect"
+import { Effect, pipe } from "effect"
 /**
  * Effects have three operators for handling expected errors:
  * 1. catchAll: traps all errors thrown
@@ -13,10 +12,10 @@ class OddError { readonly _tag = "OddError" }
 class EvenError { readonly _tag = "EvebError"}
 
 const program = pipe(
-    T.fail(new ConnectionError()),
-    T.zipRight(T.fail(new InvariantError())),
-    T.zipRight(T.fail(new OddError())),
-    T.zipRight(T.fail(new EvenError()))
+    Effect.fail(new ConnectionError()),
+    Effect.zipRight(Effect.fail(new InvariantError())),
+    Effect.zipRight(Effect.fail(new OddError())),
+    Effect.zipRight(Effect.fail(new EvenError()))
 )
 
 // 1. Use catchTag to handle ConnectionErrors

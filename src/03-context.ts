@@ -1,6 +1,4 @@
-import * as T from "@effect/io/Effect"
-import * as Context from "@effect/data/Context"
-import { pipe } from "@effect/data/Function";
+import { Effect, Context, pipe } from "effect";
 import { prompt } from "./_utils";
 
 /**
@@ -12,16 +10,15 @@ import { prompt } from "./_utils";
  * the service. Think of the Context as a Map<Tag, Service>.
  */
 
-interface Random {
-    next: () => T.Effect<never, never, number>
-}
-
-const Random = Context.Tag<Random>();
+class Random extends Context.Tag("Random")<
+    Random,
+    { next: () => Effect.Effect<number> }
+>(){}
 
 const program1 = pipe(
     Random,
-    T.flatMap(random => random.next()),
-    T.map(x => x + 1)
+    Effect.flatMap(random => random.next()),
+    Effect.map(x => x + 1)
 )
 
 /**
@@ -31,20 +28,23 @@ const program1 = pipe(
  * 
  * 1. Provide an implementation of the environment and run program1
  *
- * Tip: use a combination of T.provideService, Random and Random.of
+ * Tip: use a combination of Effect.provideService, Random and Random.of
  */
 
-const printLn = (msg: string) => T.sync(() => console.log(msg))
+const printLn = (msg: string) => Effect.sync(() => console.log(msg))
 
 class NotInteractive { readonly _tag = "NotInteractive" };
-const ask = (msg: string) => T.tryCatchPromise(async () => {
-    const ans = await prompt(msg)
-    if( ans === null ){
-        throw undefined
-    } else {
-        return ans
-    }
-}, () => new NotInteractive())
+const ask = (msg: string) => Effect.tryPromise({
+    try: async () => {
+        const ans = await prompt(msg)
+        if( ans === null ){
+            throw undefined
+        } else {
+            return ans
+        }
+    },
+    catch: () => new NotInteractive()
+})
 
 class AuthError { readonly _tag = "AuthError" }
 
@@ -55,40 +55,47 @@ type User = {
     lastName: string
 }
 
-interface UserService {
-    login: (username: string, password: string) => T.Effect<never, AuthError, User>
-}
-
-const UserService = Context.Tag<UserService>();
+class UserService extends Context.Tag("UserService")<
+    UserService,
+    {
+        login: (username: string, password: string) => Effect.Effect<User, AuthError>
+    }
+>(){}
 
 const program2 = pipe(
-    T.Do(),
-    T.bind("username", () => ask("username: ")),
-    T.bind("password", () => ask("password: ")),
-    T.bind("service", () => UserService),
-    T.flatMap(({ username, password, service }) =>  service.login(username, password)),
-    T.tap((user) => printLn(`Hello ${user.firstName}!`))
+    Effect.Do,
+    Effect.bind("username", () => ask("username: ")),
+    Effect.bind("password", () => ask("password: ")),
+    Effect.bind("service", () => UserService),
+    Effect.flatMap(({ username, password, service }) =>  service.login(username, password)),
+    Effect.tap((user) => printLn(`Hello ${user.firstName}!`))
 )
 
 // 2. Using program2, create a new program that can run and handles the errors.
 
 const program3 = program2
 
-// T.runPromise(program3)
+// Effect.runPromise(program3)
 
 // 3. Compose both services in a single context
 // Tip. Use Context.empty and Context.add.
 
-interface IOService {
-    print: (msg: string) => T.Effect<never, never, void>,
-    ask: (msg: string) => T.Effect<never, NotInteractive, string>
-}
+class IOService extends Context.Tag("IOService")<
+    IOService,
+    {
+        print: (msg: string) => Effect.Effect<void>,
+        ask: (msg: string) => Effect.Effect<string, NotInteractive>
+    }
+>(){}
 
 type RPSOption = "rock" | "paper" | "scissors"
 
-interface GameService {
-    next: () => T.Effect<never, never, RPSOption>
-}
+class GameService extends Context.Tag("GameService")<
+    GameService, 
+    {
+        next: () => Effect.Effect<RPSOption>
+    }
+>(){}
 
 const services = pipe(
     undefined
@@ -107,6 +114,6 @@ const RPS = pipe(
     undefined
 )
 
-// (Bonus) 5. Make it so it asks the user again if the input is invalid, using T.retryWhile.
+// (Bonus) 5. Make it so it asks the user again if the input is invalid, using Effect.retry and Effect.catchTag.
 
-// (Bonus) 6. Make it so it restarts if it's a tie, using T.repeatWhile.
+// (Bonus) 6. Make it so it restarts if it's a tie, using Effect.repeatWhile.
