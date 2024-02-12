@@ -18,16 +18,16 @@ class ConsoleService extends Context.Tag("ConsoleService")<
     {
         log: (msg: string) => Effect.Effect<void>
     }
->(){}
-
-const ConsoleServiceLive = Layer.succeed(
-    ConsoleService,
-    ConsoleService.of({
-        log(msg) {
-            return Effect.sync(() => console.log(msg))
-        },
-    })
-)
+>(){
+    static Live = Layer.succeed(
+        ConsoleService,
+        ConsoleService.of({
+            log(msg) {
+                return Effect.sync(() => console.log(msg))
+            },
+        })
+    )
+}
 
 class NotInteractive { readonly _tag = "NotInteractive" };
 
@@ -37,34 +37,34 @@ class IOService extends Context.Tag("IOService")<
         print: (msg: string) => Effect.Effect<void>,
         ask: (msg: string) => Effect.Effect<string, NotInteractive>
     }
->(){}
-
-const IOServiceLive = Layer.effect(
-    IOService,
-    pipe(
-        ConsoleService,
-        Effect.map((consoleService) => {
-            return IOService.of({
-                ask(msg){
-                    return Effect.tryPromise({
-                        try: async () => {
-                            const ans = await prompt(msg)
-                            if( ans === null ){
-                                throw undefined
-                            } else {
-                                return ans
-                            }
-                        }, 
-                        catch: () => new NotInteractive()
-                    })
-                },
-                print(msg) {
-                    return consoleService.log(msg)
-                },
+>(){
+    static Live = Layer.effect(
+        IOService,
+        pipe(
+            ConsoleService,
+            Effect.map((consoleService) => {
+                return IOService.of({
+                    ask(msg){
+                        return Effect.tryPromise({
+                            try: async () => {
+                                const ans = await prompt(msg)
+                                if( ans === null ){
+                                    throw undefined
+                                } else {
+                                    return ans
+                                }
+                            }, 
+                            catch: () => new NotInteractive()
+                        })
+                    },
+                    print(msg) {
+                        return consoleService.log(msg)
+                    },
+                })
             })
-        })
+        )
     )
-)
+}
 
 type RPSOption = "rock" | "paper" | "scissors"
 
@@ -85,25 +85,25 @@ const GameServiceLive = Layer.succeed(
 )
 
 class InvalidOption { readonly _tag = "InvalidOption" }
-type Winner = "player" | "cpu"
+type Winner = "player" | "cpu" | "tie"
 class RPS extends Context.Tag("RPS")<
     RPS,
     {
         game: Effect.Effect<Winner, InvalidOption>
     }
->(){}
-
-const RPSLive = Layer.effect(
-    RPS,
-    pipe(
-        Effect.all([ GameService, IOService ]),
-        Effect.map(([ GameService, IOService ]) => {
-            return RPS.of({
-                game: Effect.succeed("cpu")
+>(){
+    static Live = Layer.effect(
+        RPS,
+        pipe(
+            Effect.all([ GameService, IOService ]),
+            Effect.map(([ GameService, IOService ]) => {
+                return RPS.of({
+                    game: Effect.succeed("cpu")
+                })
             })
-        })
+        )
     )
-)
+}
 
 const program = pipe(
     RPS,
